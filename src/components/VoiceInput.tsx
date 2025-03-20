@@ -70,7 +70,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
         recognitionRef.current = new SpeechRecognitionAPI();
         recognitionRef.current.continuous = true;
         recognitionRef.current.interimResults = true;
-        recognitionRef.current.lang = 'en-US';
+        recognitionRef.current.lang = 'en-IN'; // Changed to Indian English
 
         recognitionRef.current.onresult = (event) => {
           const current = event.resultIndex;
@@ -164,32 +164,47 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
     setRecognizedText(transcript);
     
     try {
-      // Simple parsing logic - looking for name and amount
-      // Format expected: "Name amount" e.g., "John 500" or "Coffee 25.50"
-      const words = transcript.trim().split(' ');
-      let amount = 0;
-      let nameWords: string[] = [];
+      // Improved parsing logic to handle currency mentions
+      const text = transcript.toLowerCase();
       
-      // Loop through words from the end to find the amount
+      // Remove currency terms from text before processing
+      const cleanText = text
+        .replace(/rupees|rupee|rs\.?|रूपए|रुपए|रुपये|₹/gi, '')
+        .replace(/\bdo hazar\b/gi, '2000')
+        .replace(/\bek hazar\b/gi, '1000')
+        .replace(/\bpanch sau\b/gi, '500')
+        .replace(/\bdas hazar\b/gi, '10000')
+        .trim();
+      
+      const words = cleanText.split(' ');
+      let amount = 0;
+      let nameEndIndex = -1;
+      
+      // Find the first number from the end
       for (let i = words.length - 1; i >= 0; i--) {
         const possibleAmount = parseFloat(words[i].replace(/[^0-9.-]+/g, ''));
-        if (!isNaN(possibleAmount)) {
+        if (!isNaN(possibleAmount) && possibleAmount > 0) {
           amount = possibleAmount;
-          nameWords = words.slice(0, i);
+          nameEndIndex = i - 1;
           break;
         }
       }
       
-      if (amount <= 0 || nameWords.length === 0) {
+      if (amount <= 0 || nameEndIndex < 0) {
         throw new Error("Could not detect valid name and amount");
       }
       
-      const name = nameWords.join(' ');
+      // Take all words before the amount as the name
+      const name = words.slice(0, nameEndIndex + 1).join(' ');
+      
+      if (!name.trim()) {
+        throw new Error("Could not detect a valid name");
+      }
       
       // Create new transaction
       const newTransaction: Transaction = {
         id: Date.now().toString(),
-        name: name.charAt(0).toUpperCase() + name.slice(1),
+        name: name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
         amount,
         timestamp: new Date().toISOString(),
       };
