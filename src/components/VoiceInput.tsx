@@ -6,6 +6,52 @@ import { toast } from '@/components/ui/use-toast';
 import { Mic, MicOff } from 'lucide-react';
 import { Transaction } from '@/types';
 
+// TypeScript declarations for Web Speech API
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onend: () => void;
+  onerror: (event: SpeechRecognitionErrorEvent) => void;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  resultIndex: number;
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionResultList {
+  length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  isFinal: boolean;
+  length: number;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognition;
+    webkitSpeechRecognition: new () => SpeechRecognition;
+  }
+}
+
 interface VoiceInputProps {
   onTransactionAdded: (transaction: Transaction) => void;
 }
@@ -13,15 +59,15 @@ interface VoiceInputProps {
 const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [processing, setProcessing] = useState(false);
   const [recognizedText, setRecognizedText] = useState('');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const timeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        recognitionRef.current = new SpeechRecognition();
+      const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognitionAPI) {
+        recognitionRef.current = new SpeechRecognitionAPI();
         recognitionRef.current.continuous = true;
         recognitionRef.current.interimResults = true;
         recognitionRef.current.lang = 'en-US';
@@ -35,7 +81,8 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
 
         recognitionRef.current.onend = () => {
           if (isListening) {
-            recognitionRef.current?.start();
+            processTranscript();
+            setIsListening(false);
           }
         };
 
@@ -61,17 +108,46 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
+      
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+      }
     };
   }, [isListening]);
 
   const toggleListening = () => {
     if (isListening) {
-      setIsListening(false);
-      recognitionRef.current?.stop();
+      stopListening();
     } else {
-      setIsListening(true);
-      setTranscript('');
-      recognitionRef.current?.start();
+      startListening();
+    }
+  };
+
+  const startListening = () => {
+    setIsListening(true);
+    setTranscript('');
+    recognitionRef.current?.start();
+    
+    // Auto-stop after 5 seconds
+    timeoutRef.current = window.setTimeout(() => {
+      if (isListening) {
+        stopListening();
+      }
+    }, 5000);
+  };
+
+  const stopListening = () => {
+    setIsListening(false);
+    recognitionRef.current?.stop();
+    
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    
+    // Process the transcript when stopping
+    if (transcript) {
+      processTranscript();
     }
   };
 
@@ -85,7 +161,6 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
       return;
     }
 
-    setProcessing(true);
     setRecognizedText(transcript);
     
     try {
@@ -125,7 +200,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
       // Add the transaction
       onTransactionAdded(newTransaction);
       
-      // Reset transcript and processing states
+      // Reset transcript
       setTranscript('');
       
       // Show success toast
@@ -140,8 +215,6 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
         description: "Could not extract name and amount. Please try speaking clearly with name followed by amount.",
         variant: "destructive"
       });
-    } finally {
-      setProcessing(false);
     }
   };
 
@@ -183,12 +256,12 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
             onClick={toggleListening}
             variant={isListening ? "destructive" : "default"}
             size="lg"
-            className="flex-1 transition-all duration-300 ease-in-out"
+            className="w-full transition-all duration-300 ease-in-out"
           >
             {isListening ? (
               <>
                 <MicOff className="mr-2 h-5 w-5" />
-                Stop Listening
+                Stop Listening (auto-stops in 5s)
               </>
             ) : (
               <>
@@ -196,16 +269,6 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
                 Start Listening
               </>
             )}
-          </Button>
-          
-          <Button
-            onClick={processTranscript}
-            disabled={!transcript || processing || !isListening}
-            variant="outline"
-            size="lg"
-            className="flex-1 transition-all duration-300 ease-in-out"
-          >
-            Add Transaction
           </Button>
         </div>
         
