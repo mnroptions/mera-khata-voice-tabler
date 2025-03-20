@@ -133,7 +133,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
       if (isListening) {
         stopListening();
       }
-    }, 5000);
+    }, 2000);
   };
 
   const stopListening = () => {
@@ -271,7 +271,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
             onClick={toggleListening}
             variant={isListening ? "destructive" : "default"}
             size="lg"
-            className="w-full transition-all duration-300 ease-in-out"
+            className="w-full transition-all duration-200 ease-in-out"
           >
             {isListening ? (
               <>
