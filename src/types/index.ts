@@ -5,3 +5,4 @@ export interface Transaction {
   amount: number;
   timestamp: string;
 }
+

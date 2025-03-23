@@ -1,17 +1,36 @@
 
 import { Transaction } from '@/types';
 
+const formatDate = (timestamp: string) => {
+  const date = new Date(timestamp);
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  }).format(date);
+};
+
+const formatTime = (timestamp: string) => {
+  const date = new Date(timestamp);
+  return new Intl.DateTimeFormat('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  }).format(date);
+};
+
 /**
  * Exports transaction data to a CSV file
  */
 export const exportToCSV = (transactions: Transaction[], filename: string): void => {
   // Format data as CSV
-  const headers = ['Name', 'Amount', 'Date & Time'];
+  const headers = ['Name', 'Amount', 'Date', 'Time'];
   const csvContent = [
     headers.join(','),
     ...transactions.map((transaction) => {
-      const date = new Date(transaction.timestamp).toLocaleString();
-      return `${transaction.name},${transaction.amount.toFixed(2)},"${date}"`;
+      const date = formatDate(transaction.timestamp);
+      const time = formatTime(transaction.timestamp);
+      return `${transaction.name},${transaction.amount.toFixed(2)},"${date}","${time}"`;
     }),
   ].join('\n');
 
@@ -36,12 +55,13 @@ export const exportToCSV = (transactions: Transaction[], filename: string): void
  */
 export const exportToExcel = (transactions: Transaction[], filename: string): void => {
   // Format data as CSV but with Excel-friendly formatting
-  const headers = ['Name', 'Amount', 'Date & Time'];
+  const headers = ['Name', 'Amount', 'Date', 'Time'];
   const csvContent = [
     headers.join('\t'),
     ...transactions.map((transaction) => {
-      const date = new Date(transaction.timestamp).toLocaleString();
-      return `${transaction.name}\t${transaction.amount.toFixed(2)}\t"${date}"`;
+      const date = formatDate(transaction.timestamp);
+      const time = formatTime(transaction.timestamp);
+      return `${transaction.name}\t${transaction.amount.toFixed(2)}\t"${date}"\t"${time}"`;
     }),
   ].join('\n');
 

@@ -74,12 +74,18 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     exportToExcel(transactions, 'mera-khata-transactions');
   };
 
-  const formatTimestamp = (timestamp: string) => {
+  const formatDate = (timestamp: string) => {
     const date = new Date(timestamp);
-    return new Intl.DateTimeFormat('en-US', {
+    return new Intl.DateTimeFormat('en-IN', {
       day: '2-digit',
       month: 'short',
-      year: 'numeric',
+      year: 'numeric'
+    }).format(date);
+  };
+
+  const formatTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return new Intl.DateTimeFormat('en-IN', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true
@@ -163,12 +169,15 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                   className="cursor-pointer hover:bg-secondary/50 transition-colors"
                   onClick={() => requestSort('timestamp')}
                 >
-                  Date & Time
+                  Date
                   {sortConfig.key === 'timestamp' && (
                     <span className="ml-1">
                       {sortConfig.direction === 'ascending' ? '↑' : '↓'}
                     </span>
                   )}
+                </TableHead>
+                <TableHead>
+                  Time
                 </TableHead>
                 <TableHead className="w-16"></TableHead>
               </TableRow>
@@ -176,7 +185,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             <TableBody>
               {sortedTransactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                     No transactions recorded yet. Start by adding one using voice input!
                   </TableCell>
                 </TableRow>
@@ -188,7 +197,10 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                       <span className="font-mono font-medium">{transaction.amount.toFixed(2)}</span>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {formatTimestamp(transaction.timestamp)}
+                      {formatDate(transaction.timestamp)}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {formatTime(transaction.timestamp)}
                     </TableCell>
                     <TableCell>
                       <Button
