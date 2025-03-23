@@ -62,6 +62,8 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
   const [recognizedText, setRecognizedText] = useState('');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const timeoutRef = useRef<number | null>(null);
+  const silenceTimeoutRef = useRef<number | null>(null);
+  const lastTranscriptRef = useRef<string>('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -70,13 +72,19 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
         recognitionRef.current = new SpeechRecognitionAPI();
         recognitionRef.current.continuous = true;
         recognitionRef.current.interimResults = true;
-        recognitionRef.current.lang = 'en-IN'; // Changed to Indian English
+        recognitionRef.current.lang = 'en-IN'; // Indian English
 
         recognitionRef.current.onresult = (event) => {
           const current = event.resultIndex;
           const result = event.results[current];
           const transcriptValue = result[0].transcript;
           setTranscript(transcriptValue);
+          
+          // Reset silence detection timer whenever we get new speech
+          resetSilenceDetection();
+          
+          // Store the latest transcript
+          lastTranscriptRef.current = transcriptValue;
         };
 
         recognitionRef.current.onend = () => {
@@ -112,8 +120,27 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
       if (timeoutRef.current) {
         window.clearTimeout(timeoutRef.current);
       }
+      
+      if (silenceTimeoutRef.current) {
+        window.clearTimeout(silenceTimeoutRef.current);
+      }
     };
   }, [isListening]);
+
+  // Reset silence detection timer
+  const resetSilenceDetection = () => {
+    // Clear any existing timeout
+    if (silenceTimeoutRef.current) {
+      window.clearTimeout(silenceTimeoutRef.current);
+    }
+    
+    // Set a new timeout - if no speech is detected for 1.5 seconds, stop listening
+    silenceTimeoutRef.current = window.setTimeout(() => {
+      if (isListening && transcript && transcript === lastTranscriptRef.current) {
+        stopListening();
+      }
+    }, 1500);
+  };
 
   const toggleListening = () => {
     if (isListening) {
@@ -126,23 +153,33 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
   const startListening = () => {
     setIsListening(true);
     setTranscript('');
+    lastTranscriptRef.current = '';
     recognitionRef.current?.start();
     
-    // Auto-stop after 5 seconds
+    // Start silence detection
+    resetSilenceDetection();
+    
+    // Fallback timeout - auto-stop after 5 seconds as a safety measure
     timeoutRef.current = window.setTimeout(() => {
       if (isListening) {
         stopListening();
       }
-    }, 1500);
+    }, 5000);
   };
 
   const stopListening = () => {
     setIsListening(false);
     recognitionRef.current?.stop();
     
+    // Clear all timers
     if (timeoutRef.current) {
       window.clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
+    }
+    
+    if (silenceTimeoutRef.current) {
+      window.clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
     }
     
     // Process the transcript when stopping
@@ -276,7 +313,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ onTransactionAdded }) => {
             {isListening ? (
               <>
                 <MicOff className="mr-2 h-5 w-5" />
-                Stop Listening (auto-stops in 1.5s)
+                Stop Listening (auto-stops after silence)
               </>
             ) : (
               <>
